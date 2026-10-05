@@ -116,7 +116,8 @@ namespace NewPlus.Forms
             try
             {
                 bool fileRenameExtensionIsValid = !string.IsNullOrWhiteSpace(profile.FileRenameExtension);
-                bool templateDeployed = false;
+                bool namedTargetDeployed = false;
+                string createdFolderName = string.Empty;
                 if (fileRenameExtensionIsValid)
                 {
                     // Get language from extension and prompt user for project name
@@ -128,8 +129,9 @@ namespace NewPlus.Forms
 
                     if (inputForm.ShowDialog() == DialogResult.OK && !string.IsNullOrWhiteSpace(inputForm.InputText))
                     {
+                        createdFolderName = inputForm.InputText;
                         TemplateDeployer.DeployTemplate(profile, _targetDirectory, forcedProjectName: inputForm.InputText);
-                        templateDeployed = true;
+                        namedTargetDeployed = true;
                     }
                     // If DialogResult is not OK (e.g. Cancel or Escape), we do nothing and let the process abort.
                 }
@@ -137,14 +139,16 @@ namespace NewPlus.Forms
                 {
                     // If there is no fileRenameExtension, perform the standard deployment
                     TemplateDeployer.DeployTemplate(profile, _targetDirectory);
-                    templateDeployed = true;
                 }
 
-                if (templateDeployed)
+                if (namedTargetDeployed)
                 {
                     try
                     {
-                        string[] targetDirs = new string[] { _targetDirectory };
+                        // Buffer for the target folder to be created
+                        await Task.Delay(100);
+
+                        string[] targetDirs = new string[] { Path.Combine(_targetDirectory, createdFolderName) };
 
                         await IconSynchronizer.ExecuteSweepAsync(this, targetDirs, iconPath: Path.Combine(ConfigurationManager.IcoPath, profile.IconFileName), silent: true );
                     }
