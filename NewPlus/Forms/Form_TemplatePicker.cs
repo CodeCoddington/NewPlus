@@ -87,7 +87,7 @@ namespace NewPlus.Forms
 
 
         #region EventHandlers
-        private void BtnTemplate_Click(object sender, EventArgs e)
+        private async void BtnTemplate_Click(object sender, EventArgs e)
         {
             if (sender is ToolStripMenuItem item && item.Tag is TemplateProfile profile)
             {
@@ -95,7 +95,11 @@ namespace NewPlus.Forms
                 _isDeploying = true;
 
                 // Queue the deployment to run AFTER the current UI thread message loop finishes.
-                this.BeginInvoke(new Action(() => ExecuteDeployment(profile)));
+                try
+                {
+                    this.BeginInvoke(new Action(async () => await ExecuteDeploymentAsync(profile)));
+                }
+                catch { } // Errors are caught in ExecuteDeploymentAsync, so we can safely ignore any exceptions here.
             }
         }
 
@@ -107,11 +111,12 @@ namespace NewPlus.Forms
             if (!_isDeploying) this.Close();
         }
 
-        private void ExecuteDeployment(TemplateProfile profile)
+        private async Task ExecuteDeploymentAsync(TemplateProfile profile)
         {
             try
             {
                 bool fileRenameExtensionIsValid = !string.IsNullOrWhiteSpace(profile.FileRenameExtension);
+                bool templateDeployed = false;
                 if (fileRenameExtensionIsValid)
                 {
                     // Get language from extension and prompt user for project name
@@ -124,13 +129,29 @@ namespace NewPlus.Forms
                     if (inputForm.ShowDialog() == DialogResult.OK && !string.IsNullOrWhiteSpace(inputForm.InputText))
                     {
                         TemplateDeployer.DeployTemplate(profile, _targetDirectory, forcedProjectName: inputForm.InputText);
+                        templateDeployed = true;
                     }
                     // If DialogResult is not OK (e.g. Cancel or Escape), we do nothing and let the process abort.
                 }
                 else
                 {
                     // If there is no fileRenameExtension, perform the standard deployment
-                    TemplateDeployer.DeployTemplate(profile, _targetDirectory); 
+                    TemplateDeployer.DeployTemplate(profile, _targetDirectory);
+                    templateDeployed = true;
+                }
+
+                if (templateDeployed)
+                {
+                    try
+                    {
+                        string[] targetDirs = new string[] { _targetDirectory };
+
+                        await IconSynchronizer.ExecuteSweepAsync(this, targetDirs, iconPath: Path.Combine(ConfigurationManager.IcoPath, profile.IconFileName), silent: true );
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"An error occurred during the icon sweep: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                 }
             }
             catch (Exception ex)
